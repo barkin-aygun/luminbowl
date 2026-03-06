@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LuminBowl</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #1a1a2e;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: sans-serif;
+    }
+
+    .pitch {
+      display: grid;
+      grid-template-columns: repeat(26, 1fr);
+      grid-template-rows: repeat(15, 1fr);
+      width: min(95vw, 1300px);
+      aspect-ratio: 26 / 15;
+      border: 3px solid #fff;
+    }
+
+    .cell {
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      cursor: pointer;
+      transition: background-color 0.1s;
+    }
+
+    .cell:hover {
+      filter: brightness(1.2);
+    }
+
+    /* Field green with alternating column shades */
+    .cell { background: #2e8b57; }
+    .cell.col-even { background: #258050; }
+
+    /* End zones: red (left) and blue (right) */
+    .cell.endzone-left { background: #c41e3a; }
+    .cell.endzone-left.col-even { background: #a01729; }
+
+    .cell.endzone-right { background: #0066cc; }
+    .cell.endzone-right.col-even { background: #0052a3; }
+
+    /* Wide zone edges */
+    .cell.wide-edge-bottom { border-bottom: 1px dashed rgba(255, 255, 255, 0.5); }
+    .cell.wide-edge-top { border-top: 1px dashed rgba(255, 255, 255, 0.5); }
+
+    /* Line of scrimmage border between columns 13 and 14 */
+    .cell.scrimmage-right {
+      border-right: 2px solid rgba(255, 255, 255, 0.6);
+    }
+
+    /* Halfway line visual */
+    .cell.scrimmage-left {
+      border-left: 2px solid rgba(255, 255, 255, 0.6);
+    }
+
+    /* Kick target X */
+    .cell.kick-target {
+      position: relative;
+    }
+    .cell.kick-target::before,
+    .cell.kick-target::after {
+      content: '';
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 70%;
+      height: 2px;
+      background: #cc0000;
+    }
+    .cell.kick-target::before {
+      transform: translate(-50%, -50%) rotate(45deg);
+    }
+    .cell.kick-target::after {
+      transform: translate(-50%, -50%) rotate(-45deg);
+    }
+
+    /* Distance markers */
+    .cell.numbered {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.5em;
+      font-weight: bold;
+      color: white;
+      text-shadow: 0 0 3px rgba(0, 0, 0, 0.7);
+      overflow: hidden;
+      line-height: 1;
+    }
+  </style>
+</head>
+<body>
+  <div class="pitch" id="pitch"></div>
+
+  <script>
+    const pitch = document.getElementById('pitch');
+
+    // Distance marker mapping
+    const topRowLeftHalf = { 2: 1, 4: 3, 6: 5, 8: 7, 10: 9, 12: 11 };
+    const topRowRightHalf = { 14: 12, 16: 10, 18: 8, 20: 6, 22: 4, 24: 2 };
+    const bottomRowLeftHalf = { 3: 2, 5: 4, 7: 6, 9: 8, 11: 10, 13: 12 };
+    const bottomRowRightHalf = { 15: 11, 17: 9, 19: 7, 21: 5, 23: 3, 25: 1 };
+
+    for (let row = 1; row <= 15; row++) {
+      for (let col = 1; col <= 26; col++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.col = col;
+        cell.dataset.row = row;
+
+        // Alternating column shades
+        if (col % 2 === 0) {
+          cell.classList.add('col-even');
+        }
+
+        // End zones
+        if (col === 1) {
+          cell.classList.add('endzone-left');
+        } else if (col === 26) {
+          cell.classList.add('endzone-right');
+        }
+
+        // Wide zone dashed edges
+        if (row === 4) {
+          cell.classList.add('wide-edge-bottom');
+        }
+        if (row === 5) {
+          cell.classList.add('wide-edge-top');
+        }
+        if (row === 11) {
+          cell.classList.add('wide-edge-bottom');
+        }
+        if (row === 12) {
+          cell.classList.add('wide-edge-top');
+        }
+
+        // Line of scrimmage between columns 13 and 14
+        if (col === 13) {
+          cell.classList.add('scrimmage-right');
+        }
+        if (col === 14) {
+          cell.classList.add('scrimmage-left');
+        }
+
+        // Ideal kick target: deep wide zone corner in each half
+        if ((col === 7 && row === 8) || (col === 20 && row === 8)) {
+          cell.classList.add('kick-target');
+        }
+
+        // Distance markers
+        let number = null;
+        if (row === 1) {
+          number = topRowLeftHalf[col] || topRowRightHalf[col];
+        } else if (row === 15) {
+          number = bottomRowLeftHalf[col] || bottomRowRightHalf[col];
+        }
+        if (number !== null) {
+          cell.classList.add('numbered');
+          cell.textContent = number;
+        }
+
+        pitch.appendChild(cell);
+      }
+    }
+  </script>
+</body>
+</html>
