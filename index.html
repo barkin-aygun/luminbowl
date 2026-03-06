@@ -26,6 +26,7 @@
     }
 
     .cell {
+      position: relative;
       border: 1px solid rgba(255, 255, 255, 0.15);
       cursor: pointer;
       transition: background-color 0.1s;
@@ -81,6 +82,47 @@
       transform: translate(-50%, -50%) rotate(-45deg);
     }
 
+    /* Player tokens */
+    .player {
+      position: absolute;
+      top: 10%;
+      left: 10%;
+      width: 80%;
+      height: 80%;
+      border-radius: 50%;
+      cursor: grab;
+      z-index: 1;
+    }
+    .player.selected {
+      outline: 2px solid #fff;
+      outline-offset: 1px;
+      z-index: 2;
+    }
+    .player.dragging {
+      cursor: grabbing;
+      opacity: 0.8;
+      z-index: 10;
+    }
+
+    /* Click-to-move: only highlight hovered empty cell */
+    .cell.move-hover {
+      box-shadow: inset 0 0 0 2px rgba(255, 255, 200, 0.7);
+    }
+    .player.dragging {
+      outline: 2px solid #fff;
+      outline-offset: 1px;
+    }
+    .player-red {
+      background: #e03030;
+      border: 2px solid #ff8080;
+      box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    }
+    .player-blue {
+      background: #2060e0;
+      border: 2px solid #80b0ff;
+      box-shadow: 0 0 4px rgba(0,0,0,0.5);
+    }
+
     /* Distance markers */
     .cell.numbered {
       display: flex;
@@ -100,6 +142,24 @@
 
   <script>
     const pitch = document.getElementById('pitch');
+    const cells = {};
+
+    // Player starting positions [col, row]
+    const redPlayers = [
+      [13,6],[13,8],[13,10],
+      [10,5],[10,8],[10,11],
+      [7,3],[7,8],[7,13],
+      [4,5],[4,11]
+    ];
+    const bluePlayers = [
+      [14,6],[14,8],[14,10],
+      [17,5],[17,8],[17,11],
+      [20,3],[20,8],[20,13],
+      [23,5],[23,11]
+    ];
+    const playerMap = new Map();
+    redPlayers.forEach(([c, r]) => playerMap.set(`${c},${r}`, 'red'));
+    bluePlayers.forEach(([c, r]) => playerMap.set(`${c},${r}`, 'blue'));
 
     // Distance marker mapping
     const topRowLeftHalf = { 2: 1, 4: 3, 6: 5, 8: 7, 10: 9, 12: 11 };
@@ -107,67 +167,161 @@
     const bottomRowLeftHalf = { 3: 2, 5: 4, 7: 6, 9: 8, 11: 10, 13: 12 };
     const bottomRowRightHalf = { 15: 11, 17: 9, 19: 7, 21: 5, 23: 3, 25: 1 };
 
+    // Build grid
     for (let row = 1; row <= 15; row++) {
       for (let col = 1; col <= 26; col++) {
         const cell = document.createElement('div');
         cell.className = 'cell';
         cell.dataset.col = col;
         cell.dataset.row = row;
+        cells[`${col},${row}`] = cell;
 
-        // Alternating column shades
-        if (col % 2 === 0) {
-          cell.classList.add('col-even');
-        }
+        if (col % 2 === 0) cell.classList.add('col-even');
+        if (col === 1) cell.classList.add('endzone-left');
+        else if (col === 26) cell.classList.add('endzone-right');
+        if (row === 4) cell.classList.add('wide-edge-bottom');
+        if (row === 5) cell.classList.add('wide-edge-top');
+        if (row === 11) cell.classList.add('wide-edge-bottom');
+        if (row === 12) cell.classList.add('wide-edge-top');
+        if (col === 13) cell.classList.add('scrimmage-right');
+        if (col === 14) cell.classList.add('scrimmage-left');
+        if ((col === 7 && row === 8) || (col === 20 && row === 8)) cell.classList.add('kick-target');
 
-        // End zones
-        if (col === 1) {
-          cell.classList.add('endzone-left');
-        } else if (col === 26) {
-          cell.classList.add('endzone-right');
-        }
-
-        // Wide zone dashed edges
-        if (row === 4) {
-          cell.classList.add('wide-edge-bottom');
-        }
-        if (row === 5) {
-          cell.classList.add('wide-edge-top');
-        }
-        if (row === 11) {
-          cell.classList.add('wide-edge-bottom');
-        }
-        if (row === 12) {
-          cell.classList.add('wide-edge-top');
-        }
-
-        // Line of scrimmage between columns 13 and 14
-        if (col === 13) {
-          cell.classList.add('scrimmage-right');
-        }
-        if (col === 14) {
-          cell.classList.add('scrimmage-left');
-        }
-
-        // Ideal kick target: deep wide zone corner in each half
-        if ((col === 7 && row === 8) || (col === 20 && row === 8)) {
-          cell.classList.add('kick-target');
-        }
-
-        // Distance markers
         let number = null;
-        if (row === 1) {
-          number = topRowLeftHalf[col] || topRowRightHalf[col];
-        } else if (row === 15) {
-          number = bottomRowLeftHalf[col] || bottomRowRightHalf[col];
-        }
-        if (number !== null) {
+        if (row === 1) number = topRowLeftHalf[col] || topRowRightHalf[col];
+        else if (row === 15) number = bottomRowLeftHalf[col] || bottomRowRightHalf[col];
+        if (number != null) {
           cell.classList.add('numbered');
           cell.textContent = number;
+        }
+
+        const team = playerMap.get(`${col},${row}`);
+        if (team) {
+          const token = document.createElement('div');
+          token.classList.add('player', `player-${team}`);
+          cell.appendChild(token);
         }
 
         pitch.appendChild(cell);
       }
     }
+
+    // --- Interaction state ---
+    let selectedPlayer = null;
+    let didDrag = false;
+
+    function hasPlayer(cell) {
+      return cell && cell.querySelector('.player');
+    }
+
+    function clearSelection() {
+      if (selectedPlayer) selectedPlayer.classList.remove('selected');
+      selectedPlayer = null;
+      document.querySelectorAll('.cell.move-hover').forEach(c => c.classList.remove('move-hover'));
+    }
+
+    function movePlayer(token, targetCell) {
+      targetCell.appendChild(token);
+      clearSelection();
+    }
+
+    // --- Click-to-move hover highlight ---
+    pitch.addEventListener('mouseover', (e) => {
+      if (!selectedPlayer) return;
+      const cell = e.target.closest('.cell');
+      if (!cell || hasPlayer(cell)) return;
+      cell.classList.add('move-hover');
+    });
+
+    pitch.addEventListener('mouseout', (e) => {
+      const cell = e.target.closest('.cell');
+      if (cell) cell.classList.remove('move-hover');
+    });
+
+    // --- Click to select / click to move ---
+    pitch.addEventListener('click', (e) => {
+      // If we just finished a drag, don't treat mouseup as a click
+      if (didDrag) {
+        didDrag = false;
+        return;
+      }
+
+      const cell = e.target.closest('.cell');
+      if (!cell) return;
+
+      const token = cell.querySelector('.player');
+
+      // Clicking an empty cell while a player is selected: move there
+      if (selectedPlayer && !token) {
+        movePlayer(selectedPlayer, cell);
+        return;
+      }
+
+      // Clicking a player: select it (or deselect if already selected)
+      if (token) {
+        if (token === selectedPlayer) {
+          clearSelection();
+        } else {
+          clearSelection();
+          selectedPlayer = token;
+          token.classList.add('selected');
+        }
+        return;
+      }
+
+      // Clicking empty cell with no selection: nothing
+      clearSelection();
+    });
+
+    // --- Drag to move with grid snapping ---
+    let dragToken = null;
+    let dragOriginCell = null;
+    let lastSnapCell = null;
+
+    pitch.addEventListener('mousedown', (e) => {
+      const token = e.target.closest('.player');
+      if (!token) return;
+
+      e.preventDefault();
+      didDrag = false;
+
+      dragToken = token;
+      dragOriginCell = token.closest('.cell');
+      dragToken.classList.add('dragging');
+      lastSnapCell = dragOriginCell;
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!dragToken) return;
+      didDrag = true;
+
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (!el) return;
+      const cell = el.closest('.cell');
+      if (!cell) return;
+
+      if (cell !== lastSnapCell) {
+        if (!hasPlayer(cell) || cell === dragOriginCell) {
+          cell.appendChild(dragToken);
+          lastSnapCell = cell;
+        }
+      }
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (!dragToken) return;
+
+      const currentCell = dragToken.closest('.cell');
+
+      if (currentCell !== dragOriginCell && hasPlayer(currentCell) && currentCell.querySelector('.player') !== dragToken) {
+        dragOriginCell.appendChild(dragToken);
+      }
+
+      dragToken.classList.remove('dragging');
+      dragToken = null;
+      dragOriginCell = null;
+      lastSnapCell = null;
+    });
   </script>
 </body>
 </html>
