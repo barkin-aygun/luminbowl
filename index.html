@@ -92,6 +92,14 @@
       border-radius: 50%;
       cursor: grab;
       z-index: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.55em;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 0 2px rgba(0,0,0,0.8);
+      user-select: none;
     }
     .player.selected {
       outline: 2px solid #fff;
@@ -102,24 +110,20 @@
       cursor: grabbing;
       opacity: 0.8;
       z-index: 10;
+      outline: 2px solid #fff;
+      outline-offset: 1px;
     }
 
     /* Click-to-move: only highlight hovered empty cell */
     .cell.move-hover {
       box-shadow: inset 0 0 0 2px rgba(255, 255, 200, 0.7);
     }
-    .player.dragging {
-      outline: 2px solid #fff;
-      outline-offset: 1px;
-    }
     .player-red {
       background: #e03030;
-      border: 2px solid #ff8080;
       box-shadow: 0 0 4px rgba(0,0,0,0.5);
     }
     .player-blue {
       background: #2060e0;
-      border: 2px solid #80b0ff;
       box-shadow: 0 0 4px rgba(0,0,0,0.5);
     }
 
@@ -135,31 +139,201 @@
       overflow: hidden;
       line-height: 1;
     }
+
+    /* Settings button */
+    .top-buttons {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      display: flex;
+      gap: 8px;
+      z-index: 50;
+    }
+    .top-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 18px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s;
+    }
+    .top-btn:hover {
+      background: rgba(255,255,255,0.25);
+    }
+
+    /* Modal */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      z-index: 100;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-overlay.open {
+      display: flex;
+    }
+    .modal {
+      background: #1e1e2e;
+      border-radius: 12px;
+      padding: 24px;
+      width: min(90vw, 640px);
+      max-height: 85vh;
+      overflow-y: auto;
+      color: #fff;
+    }
+    .modal h2 {
+      text-align: center;
+      margin-bottom: 16px;
+      font-size: 1.2em;
+    }
+    .modal-teams {
+      display: flex;
+      gap: 24px;
+    }
+    .modal-team {
+      flex: 1;
+    }
+    .modal-team h3 {
+      text-align: center;
+      margin-bottom: 8px;
+      font-size: 0.95em;
+    }
+    .modal-team.red h3 { color: #ff6060; }
+    .modal-team.blue h3 { color: #60a0ff; }
+
+    .player-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 6px;
+      padding: 4px;
+      border-radius: 6px;
+      background: rgba(255,255,255,0.05);
+    }
+    .player-row label {
+      font-size: 0.75em;
+      color: rgba(255,255,255,0.5);
+      width: 16px;
+      text-align: right;
+      flex-shrink: 0;
+    }
+    .player-row input[type="number"] {
+      width: 38px;
+      padding: 2px 4px;
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 4px;
+      background: #2a2a3e;
+      color: #fff;
+      font-size: 0.85em;
+      text-align: center;
+      -moz-appearance: textfield;
+    }
+    .player-row input[type="number"]::-webkit-inner-spin-button,
+    .player-row input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+    }
+
+    .swatch-group {
+      display: flex;
+      gap: 4px;
+    }
+    .swatch {
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: border-color 0.1s;
+    }
+    .swatch:hover {
+      border-color: rgba(255,255,255,0.5);
+    }
+    .swatch.selected {
+      border-color: #fff;
+    }
+
+    .modal-close {
+      display: block;
+      margin: 16px auto 0;
+      padding: 8px 32px;
+      border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 6px;
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+      font-size: 0.9em;
+      cursor: pointer;
+    }
+    .modal-close:hover {
+      background: rgba(255,255,255,0.2);
+    }
   </style>
 </head>
 <body>
+  <div class="top-buttons">
+    <button class="top-btn" id="screenshotBtn" title="Copy pitch to clipboard">&#128247;</button>
+    <button class="top-btn" id="settingsBtn" title="Player settings">&#9881;</button>
+  </div>
   <div class="pitch" id="pitch"></div>
+
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal" id="modal">
+      <h2>Player Settings</h2>
+      <div class="modal-teams">
+        <div class="modal-team red">
+          <h3>Red Team</h3>
+          <div id="redTeamList"></div>
+        </div>
+        <div class="modal-team blue">
+          <h3>Blue Team</h3>
+          <div id="blueTeamList"></div>
+        </div>
+      </div>
+      <button class="modal-close" id="modalClose">Close</button>
+    </div>
+  </div>
 
   <script>
     const pitch = document.getElementById('pitch');
     const cells = {};
 
     // Player starting positions [col, row]
-    const redPlayers = [
+    const redPositions = [
       [13,6],[13,8],[13,10],
       [10,5],[10,8],[10,11],
       [7,3],[7,8],[7,13],
       [4,5],[4,11]
     ];
-    const bluePlayers = [
+    const bluePositions = [
       [14,6],[14,8],[14,10],
       [17,5],[17,8],[17,11],
       [20,3],[20,8],[20,13],
       [23,5],[23,11]
     ];
-    const playerMap = new Map();
-    redPlayers.forEach(([c, r]) => playerMap.set(`${c},${r}`, 'red'));
-    bluePlayers.forEach(([c, r]) => playerMap.set(`${c},${r}`, 'blue'));
+
+    const OUTLINE_COLORS = ['white', 'red', 'blue', 'green', 'purple', 'black'];
+
+    // Player data model
+    const players = [];
+    for (let i = 0; i < 11; i++) {
+      players.push({
+        id: i, team: 'red', number: i + 1, outlineColor: 'white',
+        col: redPositions[i][0], row: redPositions[i][1]
+      });
+    }
+    for (let i = 0; i < 11; i++) {
+      players.push({
+        id: i + 11, team: 'blue', number: i + 1, outlineColor: 'white',
+        col: bluePositions[i][0], row: bluePositions[i][1]
+      });
+    }
 
     // Distance marker mapping
     const topRowLeftHalf = { 2: 1, 4: 3, 6: 5, 8: 7, 10: 9, 12: 11 };
@@ -195,16 +369,248 @@
           cell.textContent = number;
         }
 
-        const team = playerMap.get(`${col},${row}`);
-        if (team) {
-          const token = document.createElement('div');
-          token.classList.add('player', `player-${team}`);
-          cell.appendChild(token);
-        }
-
         pitch.appendChild(cell);
       }
     }
+
+    // Render players from data model
+    function renderPlayers() {
+      // Remove all existing player tokens
+      document.querySelectorAll('.player').forEach(el => el.remove());
+
+      players.forEach(p => {
+        const cell = cells[`${p.col},${p.row}`];
+        if (!cell) return;
+        const token = document.createElement('div');
+        token.classList.add('player', `player-${p.team}`);
+        token.dataset.playerId = p.id;
+        token.style.border = `2px solid ${p.outlineColor}`;
+        token.textContent = p.number;
+        cell.appendChild(token);
+      });
+    }
+
+    // Sync player positions from DOM back to data model
+    function syncPositions() {
+      document.querySelectorAll('.player').forEach(token => {
+        const id = parseInt(token.dataset.playerId);
+        const cell = token.closest('.cell');
+        if (!cell) return;
+        const p = players[id];
+        p.col = parseInt(cell.dataset.col);
+        p.row = parseInt(cell.dataset.row);
+      });
+    }
+
+    renderPlayers();
+
+    // --- Modal ---
+    const modalOverlay = document.getElementById('modalOverlay');
+    const modal = document.getElementById('modal');
+
+    function buildModalRows() {
+      const redList = document.getElementById('redTeamList');
+      const blueList = document.getElementById('blueTeamList');
+      redList.innerHTML = '';
+      blueList.innerHTML = '';
+
+      players.forEach(p => {
+        const row = document.createElement('div');
+        row.className = 'player-row';
+
+        const label = document.createElement('label');
+        label.textContent = '#';
+
+        const numInput = document.createElement('input');
+        numInput.type = 'number';
+        numInput.min = 0;
+        numInput.max = 99;
+        numInput.value = p.number;
+        numInput.addEventListener('change', () => {
+          p.number = parseInt(numInput.value) || 0;
+        });
+
+        const swatchGroup = document.createElement('div');
+        swatchGroup.className = 'swatch-group';
+
+        OUTLINE_COLORS.forEach(color => {
+          const swatch = document.createElement('div');
+          swatch.className = 'swatch';
+          if (color === p.outlineColor) swatch.classList.add('selected');
+          swatch.style.background = color;
+          swatch.addEventListener('click', () => {
+            swatchGroup.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+            swatch.classList.add('selected');
+            p.outlineColor = color;
+          });
+          swatchGroup.appendChild(swatch);
+        });
+
+        row.append(label, numInput, swatchGroup);
+        (p.team === 'red' ? redList : blueList).appendChild(row);
+      });
+    }
+
+    document.getElementById('settingsBtn').addEventListener('click', () => {
+      buildModalRows();
+      modalOverlay.classList.add('open');
+    });
+
+    function closeModal() {
+      modalOverlay.classList.remove('open');
+      syncPositions();
+      renderPlayers();
+    }
+
+    document.getElementById('modalClose').addEventListener('click', closeModal);
+    modalOverlay.addEventListener('click', (e) => {
+      if (e.target === modalOverlay) closeModal();
+    });
+
+    // --- Screenshot to clipboard ---
+    document.getElementById('screenshotBtn').addEventListener('click', async () => {
+      const pitchEl = document.getElementById('pitch');
+      const rect = pitchEl.getBoundingClientRect();
+      const scale = 2; // retina-quality
+      const W = rect.width * scale;
+      const H = rect.height * scale;
+      const canvas = document.createElement('canvas');
+      canvas.width = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(scale, scale);
+
+      const cols = 26, rows = 15;
+      const cw = rect.width / cols;
+      const ch = rect.height / rows;
+
+      const colEvenGreen = '#258050', colOddGreen = '#2e8b57';
+      const endLeftOdd = '#c41e3a', endLeftEven = '#a01729';
+      const endRightOdd = '#0066cc', endRightEven = '#0052a3';
+
+      // Draw cells
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          const col1 = c + 1;
+          const even = col1 % 2 === 0;
+          let color;
+          if (col1 === 1) color = even ? endLeftEven : endLeftOdd;
+          else if (col1 === 26) color = even ? endRightEven : endRightOdd;
+          else color = even ? colEvenGreen : colOddGreen;
+          ctx.fillStyle = color;
+          ctx.fillRect(c * cw, r * ch, cw, ch);
+
+          // Grid lines
+          ctx.strokeStyle = 'rgba(255,255,255,0.15)';
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(c * cw, r * ch, cw, ch);
+        }
+      }
+
+      // Scrimmage line
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(13 * cw, 0);
+      ctx.lineTo(13 * cw, rows * ch);
+      ctx.stroke();
+
+      // Wide zone dashed lines
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      [3, 10].forEach(r => {
+        ctx.beginPath();
+        ctx.moveTo(0, (r + 1) * ch);
+        ctx.lineTo(cols * cw, (r + 1) * ch);
+        ctx.stroke();
+      });
+      ctx.setLineDash([]);
+
+      // Kick target X marks
+      [[6, 7], [19, 7]].forEach(([c, r]) => {
+        const cx = (c + 0.5) * cw, cy = (r + 0.5) * ch;
+        const sz = cw * 0.35;
+        ctx.strokeStyle = '#cc0000';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(cx - sz, cy - sz);
+        ctx.lineTo(cx + sz, cy + sz);
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(cx + sz, cy - sz);
+        ctx.lineTo(cx - sz, cy + sz);
+        ctx.stroke();
+      });
+
+      // Distance markers
+      const markers = {
+        ...topRowLeftHalf, ...topRowRightHalf,
+        ...Object.fromEntries(Object.entries(bottomRowLeftHalf).map(([k,v]) => [`b${k}`, v])),
+        ...Object.fromEntries(Object.entries(bottomRowRightHalf).map(([k,v]) => [`b${k}`, v]))
+      };
+      ctx.fillStyle = '#fff';
+      ctx.font = `bold ${cw * 0.45}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (const [k, v] of Object.entries(topRowLeftHalf))
+        ctx.fillText(v, (k - 0.5) * cw, 0.5 * ch);
+      for (const [k, v] of Object.entries(topRowRightHalf))
+        ctx.fillText(v, (k - 0.5) * cw, 0.5 * ch);
+      for (const [k, v] of Object.entries(bottomRowLeftHalf))
+        ctx.fillText(v, (k - 0.5) * cw, 14.5 * ch);
+      for (const [k, v] of Object.entries(bottomRowRightHalf))
+        ctx.fillText(v, (k - 0.5) * cw, 14.5 * ch);
+
+      // Border
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(0, 0, rect.width, rect.height);
+
+      // Draw players
+      const playerTokens = pitchEl.querySelectorAll('.player');
+      playerTokens.forEach(token => {
+        const cell = token.closest('.cell');
+        const c = parseInt(cell.dataset.col) - 1;
+        const r = parseInt(cell.dataset.row) - 1;
+        const cx = (c + 0.5) * cw;
+        const cy = (r + 0.5) * ch;
+        const radius = Math.min(cw, ch) * 0.38;
+        const pid = parseInt(token.dataset.playerId);
+        const p = players[pid];
+
+        // Fill
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+        ctx.fillStyle = p.team === 'red' ? '#e03030' : '#2060e0';
+        ctx.fill();
+
+        // Outline
+        ctx.strokeStyle = p.outlineColor;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // Number
+        ctx.fillStyle = '#fff';
+        ctx.font = `bold ${radius * 1.1}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(p.number, cx, cy);
+      });
+
+      canvas.toBlob(async (blob) => {
+        try {
+          await navigator.clipboard.write([
+            new ClipboardItem({ 'image/png': blob })
+          ]);
+          const btn = document.getElementById('screenshotBtn');
+          btn.textContent = '\u2713';
+          setTimeout(() => btn.textContent = '\uD83D\uDCF7', 1500);
+        } catch (err) {
+          console.error('Clipboard write failed:', err);
+        }
+      }, 'image/png');
+    });
 
     // --- Interaction state ---
     let selectedPlayer = null;
