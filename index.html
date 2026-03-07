@@ -114,6 +114,23 @@
       outline-offset: 1px;
     }
 
+    /* Drag distance indicator */
+    .drag-distance {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6em;
+      font-weight: bold;
+      color: #fff;
+      text-shadow: 0 0 3px rgba(0,0,0,0.8);
+      background: rgba(0,0,0,0.35);
+      border-radius: 4px;
+      z-index: 5;
+      pointer-events: none;
+    }
+
     /* Click-to-move: only highlight hovered empty cell */
     .cell.move-hover {
       box-shadow: inset 0 0 0 2px rgba(255, 255, 200, 0.7);
@@ -832,6 +849,19 @@
     let dragToken = null;
     let dragOriginCell = null;
     let lastSnapCell = null;
+    let distanceEl = null;
+
+    function updateDragDistance() {
+      if (!dragToken || !dragOriginCell || !distanceEl) return;
+      const currentCell = dragToken.closest('.cell');
+      if (!currentCell || currentCell === dragOriginCell) {
+        distanceEl.textContent = '';
+        return;
+      }
+      const dc = Math.abs(parseInt(currentCell.dataset.col) - parseInt(dragOriginCell.dataset.col));
+      const dr = Math.abs(parseInt(currentCell.dataset.row) - parseInt(dragOriginCell.dataset.row));
+      distanceEl.textContent = Math.max(dc, dr);
+    }
 
     pitch.addEventListener('mousedown', (e) => {
       const token = e.target.closest('.player');
@@ -845,6 +875,10 @@
       dragToken.classList.add('dragging');
       lastSnapCell = dragOriginCell;
       tooltip.classList.remove('visible');
+
+      distanceEl = document.createElement('div');
+      distanceEl.className = 'drag-distance';
+      dragOriginCell.appendChild(distanceEl);
     });
 
     document.addEventListener('mousemove', (e) => {
@@ -860,6 +894,7 @@
         if (!hasPlayer(cell) || cell === dragOriginCell) {
           cell.appendChild(dragToken);
           lastSnapCell = cell;
+          updateDragDistance();
         }
       }
     });
@@ -873,6 +908,7 @@
         dragOriginCell.appendChild(dragToken);
       }
 
+      if (distanceEl) { distanceEl.remove(); distanceEl = null; }
       dragToken.classList.remove('dragging');
       dragToken = null;
       dragOriginCell = null;
