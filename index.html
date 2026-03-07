@@ -232,12 +232,36 @@
 
     .player-row {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       gap: 6px;
       margin-bottom: 6px;
       padding: 4px;
       border-radius: 6px;
       background: rgba(255,255,255,0.05);
+    }
+    .player-row .row-top {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .player-row {
+      flex-direction: column;
+    }
+    .player-row textarea {
+      width: 100%;
+      min-height: 28px;
+      max-height: 80px;
+      padding: 3px 6px;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 4px;
+      background: #2a2a3e;
+      color: #fff;
+      font-family: sans-serif;
+      font-size: 0.75em;
+      resize: vertical;
+    }
+    .player-row textarea::placeholder {
+      color: rgba(255,255,255,0.3);
     }
     .player-row label {
       font-size: 0.75em;
@@ -295,14 +319,46 @@
     .modal-close:hover {
       background: rgba(255,255,255,0.2);
     }
+
+    /* Player note tooltip */
+    .player-tooltip {
+      position: fixed;
+      background: rgba(20, 20, 36, 0.95);
+      color: #fff;
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.8em;
+      line-height: 1.4;
+      max-width: 220px;
+      white-space: pre-wrap;
+      pointer-events: none;
+      z-index: 60;
+      opacity: 0;
+      transform: translateY(4px);
+      transition: opacity 0.15s, transform 0.15s;
+      border: 1px solid rgba(255,255,255,0.15);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .player-tooltip.visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    .player-tooltip .tooltip-header {
+      font-weight: bold;
+      margin-bottom: 4px;
+      padding-bottom: 4px;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+    }
   </style>
 </head>
 <body>
   <div class="top-buttons">
+    <button class="top-btn" id="saveBtn" title="Save state">&#128190;</button>
     <button class="top-btn" id="screenshotBtn" title="Copy pitch to clipboard">&#128247;</button>
     <button class="top-btn" id="settingsBtn" title="Player settings">&#9881;</button>
   </div>
   <div class="toast" id="toast"></div>
+  <div class="player-tooltip" id="playerTooltip"></div>
   <div class="pitch" id="pitch"></div>
 
   <div class="modal-overlay" id="modalOverlay">
@@ -343,18 +399,26 @@
     const OUTLINE_COLORS = ['white', 'red', 'blue', 'green', 'purple', 'black'];
 
     // Player data model
-    const players = [];
-    for (let i = 0; i < 11; i++) {
-      players.push({
-        id: i, team: 'red', number: i + 1, outlineColor: 'white',
-        col: redPositions[i][0], row: redPositions[i][1]
-      });
+    const STORAGE_KEY = 'luminbowl_players';
+    let players;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try { players = JSON.parse(saved); } catch (e) { players = null; }
     }
-    for (let i = 0; i < 11; i++) {
-      players.push({
-        id: i + 11, team: 'blue', number: i + 1, outlineColor: 'white',
-        col: bluePositions[i][0], row: bluePositions[i][1]
-      });
+    if (!players || players.length !== 22) {
+      players = [];
+      for (let i = 0; i < 11; i++) {
+        players.push({
+          id: i, team: 'red', number: i + 1, outlineColor: 'white', notes: '',
+          col: redPositions[i][0], row: redPositions[i][1]
+        });
+      }
+      for (let i = 0; i < 11; i++) {
+        players.push({
+          id: i + 11, team: 'blue', number: i + 1, outlineColor: 'white', notes: '',
+          col: bluePositions[i][0], row: bluePositions[i][1]
+        });
+      }
     }
 
     // Distance marker mapping
@@ -426,6 +490,47 @@
 
     renderPlayers();
 
+    // --- Player tooltip on hover ---
+    const tooltip = document.getElementById('playerTooltip');
+    let tooltipTimer = null;
+
+    document.addEventListener('mouseover', (e) => {
+      const token = e.target.closest('.player');
+      if (!token || dragToken) return;
+      const pid = parseInt(token.dataset.playerId);
+      const p = players[pid];
+      if (!p.notes) return;
+
+      clearTimeout(tooltipTimer);
+      const teamLabel = p.team === 'red' ? 'Red' : 'Blue';
+      tooltip.innerHTML = '';
+      tooltip.appendChild(document.createTextNode(p.notes));
+
+      // Position: next to the player token
+      const rect = token.getBoundingClientRect();
+      const tipRight = rect.right + 8;
+      const tipLeft = rect.left;
+      const tipTop = rect.top;
+
+      // Prefer right side, fall back to left if near viewport edge
+      tooltip.style.top = tipTop + 'px';
+      if (tipRight + 230 < window.innerWidth) {
+        tooltip.style.left = tipRight + 'px';
+        tooltip.style.right = '';
+      } else {
+        tooltip.style.left = '';
+        tooltip.style.right = (window.innerWidth - tipLeft + 8) + 'px';
+      }
+
+      tooltip.classList.add('visible');
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      const token = e.target.closest('.player');
+      if (!token) return;
+      tooltipTimer = setTimeout(() => tooltip.classList.remove('visible'), 100);
+    });
+
     // --- Modal ---
     const modalOverlay = document.getElementById('modalOverlay');
     const modal = document.getElementById('modal');
@@ -468,7 +573,16 @@
           swatchGroup.appendChild(swatch);
         });
 
-        row.append(label, numInput, swatchGroup);
+        const rowTop = document.createElement('div');
+        rowTop.className = 'row-top';
+        rowTop.append(label, numInput, swatchGroup);
+
+        const notesInput = document.createElement('textarea');
+        notesInput.placeholder = 'Notes...';
+        notesInput.value = p.notes;
+        notesInput.addEventListener('input', () => { p.notes = notesInput.value; });
+
+        row.append(rowTop, notesInput);
         (p.team === 'red' ? redList : blueList).appendChild(row);
       });
     }
@@ -496,6 +610,13 @@
       toast.classList.add('show');
       setTimeout(() => toast.classList.remove('show'), 2000);
     }
+
+    // --- Save to localStorage ---
+    document.getElementById('saveBtn').addEventListener('click', () => {
+      syncPositions();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(players));
+      showToast('State saved');
+    });
 
     // --- Screenshot to clipboard ---
     document.getElementById('screenshotBtn').addEventListener('click', async () => {
@@ -723,6 +844,7 @@
       dragOriginCell = token.closest('.cell');
       dragToken.classList.add('dragging');
       lastSnapCell = dragOriginCell;
+      tooltip.classList.remove('visible');
     });
 
     document.addEventListener('mousemove', (e) => {
