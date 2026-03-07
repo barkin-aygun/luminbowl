@@ -167,6 +167,27 @@
       background: rgba(255,255,255,0.25);
     }
 
+    /* Toast */
+    .toast {
+      position: fixed;
+      top: 56px;
+      right: 12px;
+      background: rgba(30,30,46,0.9);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.85em;
+      z-index: 50;
+      opacity: 0;
+      transform: translateY(-8px);
+      transition: opacity 0.2s, transform 0.2s;
+      pointer-events: none;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
     /* Modal */
     .modal-overlay {
       display: none;
@@ -281,6 +302,7 @@
     <button class="top-btn" id="screenshotBtn" title="Copy pitch to clipboard">&#128247;</button>
     <button class="top-btn" id="settingsBtn" title="Player settings">&#9881;</button>
   </div>
+  <div class="toast" id="toast"></div>
   <div class="pitch" id="pitch"></div>
 
   <div class="modal-overlay" id="modalOverlay">
@@ -467,6 +489,14 @@
       if (e.target === modalOverlay) closeModal();
     });
 
+    // --- Toast ---
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2000);
+    }
+
     // --- Screenshot to clipboard ---
     document.getElementById('screenshotBtn').addEventListener('click', async () => {
       const pitchEl = document.getElementById('pitch');
@@ -603,9 +633,7 @@
           await navigator.clipboard.write([
             new ClipboardItem({ 'image/png': blob })
           ]);
-          const btn = document.getElementById('screenshotBtn');
-          btn.textContent = '\u2713';
-          setTimeout(() => btn.textContent = '\uD83D\uDCF7', 1500);
+          showToast('Copied to clipboard');
         } catch (err) {
           console.error('Clipboard write failed:', err);
         }
