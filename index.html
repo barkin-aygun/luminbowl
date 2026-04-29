@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>LuminBowl</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -13,16 +13,20 @@
       justify-content: center;
       align-items: center;
       min-height: 100vh;
+      min-height: 100dvh;
       font-family: sans-serif;
+      overflow: hidden;
     }
 
     .pitch {
       display: grid;
       grid-template-columns: repeat(26, 1fr);
       grid-template-rows: repeat(15, 1fr);
-      width: min(95vw, 1300px);
+      /* Constrain by both viewport width and height so pitch fits on landscape mobile */
+      width: min(95vw, 1300px, calc(92dvh * 26 / 15));
       aspect-ratio: 26 / 15;
       border: 3px solid #fff;
+      touch-action: none;
     }
 
     .cell {
@@ -160,25 +164,26 @@
     /* Settings button */
     .top-buttons {
       position: fixed;
-      top: 12px;
-      right: 12px;
+      top: max(12px, env(safe-area-inset-top));
+      right: max(12px, env(safe-area-inset-right));
       display: flex;
       gap: 8px;
       z-index: 50;
     }
     .top-btn {
-      width: 36px;
-      height: 36px;
+      width: 44px;
+      height: 44px;
       border-radius: 50%;
       border: 1px solid rgba(255,255,255,0.3);
       background: rgba(255,255,255,0.1);
       color: #fff;
-      font-size: 18px;
+      font-size: 20px;
       cursor: pointer;
       display: flex;
       align-items: center;
       justify-content: center;
       transition: background 0.15s;
+      touch-action: manipulation;
     }
     .top-btn:hover {
       background: rgba(255,255,255,0.25);
@@ -187,8 +192,8 @@
     /* Toast */
     .toast {
       position: fixed;
-      top: 56px;
-      right: 12px;
+      top: max(56px, calc(env(safe-area-inset-top) + 56px));
+      right: max(12px, env(safe-area-inset-right));
       background: rgba(30,30,46,0.9);
       color: #fff;
       padding: 8px 16px;
@@ -388,9 +393,82 @@
       border-radius: 0 0 50% 50%;
       opacity: 0.75;
     }
+
+    .modal-close {
+      touch-action: manipulation;
+    }
+
+    /* Mobile: stack teams vertically and increase hit targets */
+    @media (max-width: 640px) {
+      .modal-teams {
+        flex-direction: column;
+        gap: 12px;
+      }
+      .modal {
+        padding: 16px;
+        max-height: 90dvh;
+        border-radius: 8px;
+      }
+      .swatch {
+        width: 24px;
+        height: 24px;
+      }
+      .player-row input[type="number"] {
+        width: 44px;
+        padding: 4px 6px;
+        font-size: 1em;
+      }
+      .player-row textarea {
+        font-size: 0.85em;
+      }
+    }
+
+    /* Landscape hint: shown on narrow portrait screens where the pitch is too small */
+    .landscape-hint {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.88);
+      z-index: 200;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 1em;
+      text-align: center;
+      gap: 20px;
+      padding: 24px;
+      pointer-events: none;
+    }
+    .landscape-hint svg {
+      width: 72px;
+      height: 72px;
+      opacity: 0.9;
+      animation: hint-rotate 2.4s ease-in-out infinite;
+    }
+    @keyframes hint-rotate {
+      0%, 40% { transform: rotate(0deg); }
+      70%, 100% { transform: rotate(90deg); }
+    }
+    .landscape-hint p {
+      max-width: 220px;
+      line-height: 1.5;
+      color: rgba(255,255,255,0.85);
+    }
+    @media (max-width: 540px) and (orientation: portrait) {
+      .landscape-hint { display: flex; }
+    }
   </style>
 </head>
 <body>
+  <div class="landscape-hint" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="6" width="20" height="12" rx="2"/>
+      <path d="M8 6V4M16 6V4"/>
+      <path d="M17 12l-3 3m0 0l-3-3m3 3V9"/>
+    </svg>
+    <p>Rotate to landscape for the best experience</p>
+  </div>
   <div class="top-buttons">
     <button class="top-btn" id="bloodBtn" title="Add blood splatters">&#129656;</button>
     <button class="top-btn" id="saveBtn" title="Save state">&#128190;</button>
@@ -1007,6 +1085,79 @@
       dragOriginCell = null;
       lastSnapCell = null;
     });
+
+    // --- Touch support ---
+    pitch.addEventListener('touchstart', (e) => {
+      const token = e.target.closest('.player');
+      if (!token) return; // empty-cell taps fall through to click handler
+
+      e.preventDefault();
+      didDrag = false;
+
+      dragToken = token;
+      dragOriginCell = token.closest('.cell');
+      dragToken.classList.add('dragging');
+      lastSnapCell = dragOriginCell;
+      tooltip.classList.remove('visible');
+
+      distanceEl = document.createElement('div');
+      distanceEl.className = 'drag-distance';
+      dragOriginCell.appendChild(distanceEl);
+    }, { passive: false });
+
+    document.addEventListener('touchmove', (e) => {
+      if (!dragToken) return;
+      e.preventDefault();
+      didDrag = true;
+
+      const touch = e.touches[0];
+      const el = document.elementFromPoint(touch.clientX, touch.clientY);
+      if (!el) return;
+      const cell = el.closest('.cell');
+      if (!cell) return;
+
+      if (cell !== lastSnapCell) {
+        if (!hasPlayer(cell) || cell === dragOriginCell) {
+          cell.appendChild(dragToken);
+          lastSnapCell = cell;
+          updateDragDistance();
+        }
+      }
+    }, { passive: false });
+
+    document.addEventListener('touchend', (e) => {
+      if (!dragToken) return;
+
+      const currentCell = dragToken.closest('.cell');
+
+      if (currentCell !== dragOriginCell && hasPlayer(currentCell) && currentCell.querySelector('.player') !== dragToken) {
+        dragOriginCell.appendChild(dragToken);
+      }
+
+      if (distanceEl) { distanceEl.remove(); distanceEl = null; }
+      dragToken.classList.remove('dragging');
+
+      const token = dragToken;
+      const wasDrag = didDrag;
+      didDrag = false; // reset so subsequent cell taps aren't blocked
+      dragToken = null;
+      dragOriginCell = null;
+      lastSnapCell = null;
+
+      if (!wasDrag) {
+        // Treat as tap: toggle selection
+        if (token === selectedPlayer) {
+          clearSelection();
+        } else {
+          clearSelection();
+          selectedPlayer = token;
+          token.classList.add('selected');
+        }
+      }
+    });
+
+    // Touch tap on empty cell while player selected: handled by the existing
+    // click event (touchstart didn't preventDefault on empty cells, so click fires).
   </script>
 </body>
 </html>
