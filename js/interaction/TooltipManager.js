@@ -18,7 +18,7 @@ export class TooltipManager {
     const token = e.target.closest('.player');
     if (!token || this.dragManager.isDragging()) return;
     const pid = parseInt(token.dataset.playerId);
-    const p = this.gameState.getPlayer(pid);
+    const p = this.gameState.players[pid];
     if (!p.notes) return;
 
     clearTimeout(this.timer);

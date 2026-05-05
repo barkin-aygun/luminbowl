@@ -43,10 +43,14 @@ export class PitchRenderer {
     }
   }
 
-  renderPlayers() {
+  renderPlayers(state) {
+    // Accept either plain state object or legacy gameState instance
+    const players = state?.players ?? this.gameState?.players ?? [];
+    const turnState = state?.turnState ?? this.gameState?.turnState ?? null;
+
     document.querySelectorAll('.player').forEach(el => el.remove());
 
-    this.gameState.players.forEach(p => {
+    players.forEach(p => {
       const cell = this.cells[`${p.col},${p.row}`];
       if (!cell) return;
       const token = document.createElement('div');
@@ -54,7 +58,31 @@ export class PitchRenderer {
       token.dataset.playerId = p.id;
       token.style.border = `2px solid ${p.outlineColor}`;
       token.textContent = p.number;
+
+      if (turnState) {
+        const act = turnState.activations?.[String(p.id)];
+        if (turnState.activatingPlayerId === p.id) {
+          token.classList.add('activating');
+        } else if (act?.activated) {
+          token.classList.add('activated');
+        }
+      }
+
       cell.appendChild(token);
+    });
+  }
+
+  highlightReachable(cellKeySet) {
+    // Remove stale highlights first
+    Object.values(this.cells).forEach(c => c.classList.remove('reachable'));
+    cellKeySet.forEach(key => {
+      if (this.cells[key]) this.cells[key].classList.add('reachable');
+    });
+  }
+
+  clearHighlights() {
+    Object.values(this.cells).forEach(c => {
+      c.classList.remove('reachable', 'move-hover', 'tackle-zone');
     });
   }
 
