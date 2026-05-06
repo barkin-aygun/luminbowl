@@ -78,6 +78,8 @@ export class DiceRoller {
   constructor() {
     this._counts  = Object.fromEntries(SECTIONS.map(s => [s.type, 0]));
     this._diceEls = {};
+    this._pendingResolve = null;
+    this._lastResults = [];
     this._buildPanel();
     this._buildOverlay();
   }
@@ -105,6 +107,11 @@ export class DiceRoller {
     title.className = 'dice-panel-title';
     title.textContent = 'Roll Dice';
     this.panel.appendChild(title);
+
+    this._contextEl = document.createElement('div');
+    this._contextEl.className = 'dice-context-label';
+    this._contextEl.style.display = 'none';
+    this.panel.appendChild(this._contextEl);
 
     SECTIONS.forEach(sec => this.panel.appendChild(this._buildSection(sec)));
 
@@ -183,6 +190,12 @@ export class DiceRoller {
     acceptBtn.addEventListener('click', e => {
       e.stopPropagation();
       this.overlay.classList.remove('open');
+      if (this._pendingResolve) {
+        const d6Result = this._lastResults.find(r => r.type === 'd6');
+        const resolve = this._pendingResolve;
+        this._pendingResolve = null;
+        if (d6Result) resolve(d6Result.value);
+      }
     });
 
     this.overlay.appendChild(this.rollContainer);
@@ -218,7 +231,29 @@ export class DiceRoller {
     this._showResults(results);
   }
 
+  setPendingRoll(pendingRoll, onResolve) {
+    if (pendingRoll) {
+      this._pendingResolve = onResolve;
+      const targetStr = pendingRoll.type === 'dodge' ? `Dodge — need ${pendingRoll.target}+` : pendingRoll.type;
+      this._contextEl.textContent = targetStr;
+      this._contextEl.style.display = 'block';
+      // Pre-select 1 D6
+      SECTIONS.forEach(s => { this._counts[s.type] = 0; });
+      this._counts['d6'] = 1;
+      SECTIONS.forEach(s => this._updateHighlight(s.type));
+      this._updateRollBtn();
+      this.panel.classList.add('open');
+    } else {
+      this._pendingResolve = null;
+      this._contextEl.style.display = 'none';
+      this._contextEl.textContent = '';
+      SECTIONS.forEach(s => { this._counts[s.type] = 0; this._updateHighlight(s.type); });
+      this._updateRollBtn();
+    }
+  }
+
   _showResults(results) {
+    this._lastResults = results;
     this.rollContainer.innerHTML = '';
     results.forEach(r => {
       const die = document.createElement('div');

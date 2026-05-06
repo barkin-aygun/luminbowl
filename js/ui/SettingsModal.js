@@ -64,6 +64,36 @@ export class SettingsModal {
       rowTop.className = 'row-top';
       rowTop.append(label, numInput, swatchGroup);
 
+      // Stat inputs: MA / ST / AG / AV
+      const statsRow = document.createElement('div');
+      statsRow.className = 'stats-row';
+      const STAT_KEYS = ['ma', 'st', 'ag', 'av'];
+      // Local mutable copy — avoids mutating Immer-frozen player objects
+      const localStats = { ...(p.stats ?? { ma: 6, st: 3, ag: 3, av: 8 }) };
+      STAT_KEYS.forEach(stat => {
+        const statLabel = document.createElement('label');
+        statLabel.className = 'stat-label';
+        statLabel.textContent = stat.toUpperCase();
+
+        const statInput = document.createElement('input');
+        statInput.type = 'number';
+        statInput.min = 1;
+        statInput.max = 10;
+        statInput.value = localStats[stat];
+        statInput.className = 'stat-input';
+        statInput.addEventListener('change', () => {
+          const val = Math.min(10, Math.max(1, parseInt(statInput.value) || 1));
+          statInput.value = val;
+          localStats[stat] = val;
+          this.gameState.updatePlayer(p.id, { stats: { ...localStats } });
+        });
+
+        const wrap = document.createElement('div');
+        wrap.className = 'stat-wrap';
+        wrap.append(statLabel, statInput);
+        statsRow.appendChild(wrap);
+      });
+
       const notesInput = document.createElement('textarea');
       notesInput.placeholder = 'Notes...';
       notesInput.value = p.notes;
@@ -71,7 +101,7 @@ export class SettingsModal {
         this.gameState.updatePlayer(p.id, { notes: notesInput.value });
       });
 
-      row.append(rowTop, notesInput);
+      row.append(rowTop, statsRow, notesInput);
       (p.team === 'red' ? redList : blueList).appendChild(row);
     });
   }

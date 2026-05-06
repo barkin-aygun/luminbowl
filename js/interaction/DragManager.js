@@ -4,6 +4,7 @@ export class DragManager {
     this.renderer = pitchRenderer;
     this.gameState = gameState;
     this.onDragEnd = onDragEnd;
+    this.enabled = true;
 
     this.dragToken = null;
     this.dragOriginCell = null;
@@ -18,6 +19,10 @@ export class DragManager {
 
   isDragging() {
     return this.dragToken !== null;
+  }
+
+  setEnabled(bool) {
+    this.enabled = bool;
   }
 
   attach() {
@@ -49,6 +54,7 @@ export class DragManager {
   }
 
   _onMouseDown(e) {
+    if (!this.enabled) return;
     const token = e.target.closest('.player');
     if (!token) return;
 

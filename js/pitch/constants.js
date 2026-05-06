@@ -16,6 +16,8 @@ export const BLUE_POSITIONS = [
 ];
 
 export const LAYOUT_VERSION = 2; // increment when grid dimensions/orientation change
+export const GAME_VERSION = 1;
+export const DEFAULT_STATS = { ma: 6, st: 3, ag: 3, av: 8 };
 
 export const OUTLINE_COLORS = ['white', 'red', 'blue', 'green', 'purple', 'black'];
 
